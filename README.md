@@ -8,3 +8,7 @@ Members:
 5. Tejas Singh (21CS01011)
 
 Link to GitHub files => https://github.com/gpgpu-sim/gpgpu-sim_distribution
+
+Changelogs:
+
+07/08/2023 => Added COA_LAB_2 folder.
