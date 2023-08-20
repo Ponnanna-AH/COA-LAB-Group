@@ -11,7 +11,7 @@ using std::cout;
 using std::generate;
 using std::vector;
 
-_global_ void matrixMul(const int *a, const int *b, int *c, int N)
+__global__ void matrixMul(const int *a, const int *b, int *c, int N)
 {
     // Compute each thread's global row and column index
     int row = blockIdx.y * blockDim.y + threadIdx.y;
