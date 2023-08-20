@@ -7,15 +7,15 @@
 const int N = 128;
 const int BLOCK_SIZE = 16;
 
-_global_ void matrixMultiplyShared(float *A, float *B, float *C, int n)
+__global__ void matrixMultiplyShared(float *A, float *B, float *C, int n)
 {
     int tx = threadIdx.x;
     int ty = threadIdx.y;
     int row = blockIdx.y * blockDim.y + ty;
     int col = blockIdx.x * blockDim.x + tx;
 
-    _shared_ float shared_A[BLOCK_SIZE][BLOCK_SIZE];
-    _shared_ float shared_B[BLOCK_SIZE][BLOCK_SIZE];
+    __shared__ float shared_A[BLOCK_SIZE][BLOCK_SIZE];
+    __shared__ float shared_B[BLOCK_SIZE][BLOCK_SIZE];
 
     float sum = 0.0f;
 
