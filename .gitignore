@@ -1,2 +1,5 @@
 **/.DS_Store
 *.vscode
+/COA_LAB_Endsem_project/gpgpu-sim_distribution/build/
+/COA_LAB_Endsem_project/gpgpu-sim_distribution/lib/
+abcdefgh
