@@ -1164,7 +1164,7 @@ void scheduler_unit::order_by_priority(
     abort();
   }
 }
-
+// int abcd=1;
 void scheduler_unit::cycle() {
   SCHED_DPRINTF("scheduler_unit::cycle()\n");
   bool valid_inst =
@@ -1175,6 +1175,14 @@ void scheduler_unit::cycle() {
   bool issued_inst = false;  // of these we issued one
 
   order_warps();
+  // if (abcd) {
+  //   abcd=0;
+  //   for (std::vector<shd_warp_t *>::const_iterator iter =
+  //          m_next_cycle_prioritized_warps.begin();
+  //      iter != m_next_cycle_prioritized_warps.end(); iter++) {
+  //       printf("!@#$  warp id %6d cta id %6d", (*iter)->get_warp_id, (*iter)->get_cta_id);
+  //      }
+  // }
   for (std::vector<shd_warp_t *>::const_iterator iter =
            m_next_cycle_prioritized_warps.begin();
        iter != m_next_cycle_prioritized_warps.end(); iter++) {
