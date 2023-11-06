@@ -53,6 +53,10 @@
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
+int num_warps = 0;
+int *cta_status = NULL;
+int *warp_insts_issued = NULL;
+
 mem_fetch *shader_core_mem_fetch_allocator::alloc(
     new_addr_type addr, mem_access_type type, unsigned size, bool wr,
     unsigned long long cycle) const {
@@ -230,6 +234,11 @@ void shader_core_ctx::create_schedulers() {
   // Here m_warp.size() is the total number of warps in a core, because we are in shader_core_ctx class
   // Try to print here cta id by using warp(warp_id).get_cta_id()
   // Maybe this will return concurrent or original cta id
+
+  warp_insts_issued=(int*)calloc(m_warp.size(), sizeof(int));
+  cta_status=(int*)calloc(m_warp.size(), sizeof(int));
+  num_warps=m_warp.size();
+
   for (unsigned i = 0; i < m_warp.size(); i++) {
     // distribute i's evenly though schedulers;
     schedulers[i % m_config->gpgpu_num_sched_per_core]->add_supervised_warp_id(
@@ -1168,13 +1177,14 @@ void scheduler_unit::order_by_priority(
 }
 
 void scheduler_unit::cycle() {
+    SCHED_DPRINTF("scheduler_unit::cycle()\n");
+    bool valid_inst =
         false;  // there was one warp with a valid instruction to issue (didn't
                 // require flush due to control hazard)
-    bool valid_inst =
     bool ready_inst = false;   // of the valid instructions, there was one not
-    SCHED_DPRINTF("scheduler_unit::cycle()\n");
-                               // waiting for pending register writes
+                              // waiting for pending register writes
     bool issued_inst = false;  // of these we issued one
+
     order_warps();
     // if (abcd) {
     //   abcd=0;
@@ -1426,6 +1436,9 @@ void scheduler_unit::cycle() {
                 warp(warp_id).ibuffer_flush();
             }
             if (warp_inst_issued) {
+
+              warp_insts_issued[warp_id]++;
+
                 SCHED_DPRINTF(
                     "Warp (warp_id %u, dynamic_warp_id %u) issued %u instructions\n",
                     (*iter)->get_warp_id(), (*iter)->get_dynamic_warp_id(), issued);
@@ -2751,6 +2764,12 @@ void shader_core_ctx::register_cta_thread_exit(unsigned cta_num,
   assert(m_cta_status[cta_num] > 0);
   m_cta_status[cta_num]--;
   if (!m_cta_status[cta_num]) {
+
+    for (int z=0; z<num_warps; z++) {
+      printf("%d ", warp_insts_issued[z]);
+    }
+    printf("\n");
+
     // Increment the completed CTAs
     m_stats->ctas_completed++;
     m_gpu->inc_completed_cta();

@@ -54,6 +54,7 @@
 #include "stack.h"
 #include "stats.h"
 #include "traffic_breakdown.h"
+#include "../cta_counters.h"
 
 #define NO_OP_FLAG 0xFF
 
