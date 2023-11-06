@@ -1485,8 +1485,8 @@ bool scheduler_unit::sort_warps_by_cta_progress(shd_warp_t *lhs,
     if (lhs->get_cta_id() == rhs->get_cta_id()) {
       return false;
     } else {
-      int left_cta_id=lhs->get_cta_id();
-      int right_cta_id=rhs->get_cta_id();
+      int left_cta_id = lhs->get_cta_id();
+      int right_cta_id = rhs->get_cta_id();
       if (lhs->get_shader()->num_cta_insts_issued[left_cta_id] < rhs->get_shader()->num_cta_insts_issued[right_cta_id]) {
         return false;
       } else {
@@ -1505,8 +1505,8 @@ void lrr_scheduler::order_warps() {
 }
 
 void kaws_scheduler::order_warps() {
-  bool isKAWS=this->get_shader()->is_last_cta_issued;
-  if (isKAWS) {
+  bool milestone_reached = this->get_shader()->is_last_cta_issued;
+  if (milestone_reached) {
     order_by_priority(m_next_cycle_prioritized_warps, m_supervised_warps,
                     m_last_supervised_issued, m_supervised_warps.size(),
                     ORDERING_BY_CTA_PROGRESS,
@@ -2748,10 +2748,6 @@ void shader_core_ctx::register_cta_thread_exit(unsigned cta_num,
   assert(m_cta_status[cta_num] > 0);
   m_cta_status[cta_num]--;
   if (!m_cta_status[cta_num]) {
-    // for (int z=0; z<num_ctas; z++) {
-    //   printf("%d ", num_cta_insts_issued[z]);
-    // }
-    printf("cta id %d insts issued %d\n", cta_num, num_cta_insts_issued[cta_num]);
     // Increment the completed CTAs
     m_stats->ctas_completed++;
     m_gpu->inc_completed_cta();
