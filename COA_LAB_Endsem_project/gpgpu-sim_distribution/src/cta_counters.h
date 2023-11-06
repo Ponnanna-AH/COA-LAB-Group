@@ -5,9 +5,8 @@
 
 // extern int cta_count[COUNTER_SIZE];
 
-extern int num_warps;
-extern int* warp_insts_issued;
-extern int* cta_status;
-// bool is_first_cta_in_kernel=false;
+extern int num_ctas;
+extern int* num_cta_insts_issued;
+extern bool is_first_cta_in_kernel;
 
 #endif

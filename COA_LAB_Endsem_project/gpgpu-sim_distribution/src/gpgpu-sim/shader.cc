@@ -245,9 +245,9 @@ void shader_core_ctx::create_schedulers() {
   // Try to print here cta id by using warp(warp_id).get_cta_id()
   // Maybe this will return concurrent or original cta id
 
-  warp_insts_issued=(int*)calloc(m_warp.size(), sizeof(int));
-  cta_status=(int*)calloc(m_warp.size(), sizeof(int));
-  num_warps=m_warp.size();
+  int * num_cta_insts_issued=(int*)calloc(m_warp.size(), MAX_CTA_PER_SHADER);
+  bool is_last_cta_issued=false;
+  int num_ctas=MAX_CTA_PER_SHADER;
 
   for (unsigned i = 0; i < m_warp.size(); i++) {
     // distribute i's evenly though schedulers;
@@ -2784,7 +2784,7 @@ void shader_core_ctx::register_cta_thread_exit(unsigned cta_num,
   assert(m_cta_status[cta_num] > 0);
   m_cta_status[cta_num]--;
   if (!m_cta_status[cta_num]) {
-    for (int z=0; z<MAX_CTA_PER_SHADER; z++) {
+    for (int z=0; z<num_ctas; z++) {
       printf("%d ", num_cta_insts_issued[z]);
     }
     printf("\n");
