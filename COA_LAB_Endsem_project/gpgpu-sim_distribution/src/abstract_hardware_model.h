@@ -72,7 +72,6 @@ enum AdaptiveCache { FIXED = 0, ADAPTIVE_VOLTA = 1 };
 #include <stdio.h>
 #include <string.h>
 #include <set>
-#include "cta_counters.h"
 
 typedef unsigned long long new_addr_type;
 typedef unsigned long long cudaTextureObject_t;
