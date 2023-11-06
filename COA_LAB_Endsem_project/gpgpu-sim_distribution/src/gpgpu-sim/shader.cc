@@ -1450,9 +1450,7 @@ void scheduler_unit::cycle() {
                 warp(warp_id).ibuffer_flush();
             }
             if (warp_inst_issued) {
-              // (*iter)->get_shader()->m_c[cta_id]++;
-              warp_insts_issued[warp_id]++;
-
+                num_cta_insts_issued[(*iter)->get_cta_id()]++;
                 SCHED_DPRINTF(
                     "Warp (warp_id %u, dynamic_warp_id %u) issued %u instructions\n",
                     (*iter)->get_warp_id(), (*iter)->get_dynamic_warp_id(), issued);
@@ -2786,12 +2784,10 @@ void shader_core_ctx::register_cta_thread_exit(unsigned cta_num,
   assert(m_cta_status[cta_num] > 0);
   m_cta_status[cta_num]--;
   if (!m_cta_status[cta_num]) {
-
-    for (int z=0; z<num_warps; z++) {
-      printf("%d ", warp_insts_issued[z]);
+    for (int z=0; z<MAX_CTA_PER_SHADER; z++) {
+      printf("%d ", num_cta_insts_issued[z]);
     }
     printf("\n");
-
     // Increment the completed CTAs
     m_stats->ctas_completed++;
     m_gpu->inc_completed_cta();

@@ -1600,7 +1600,7 @@ void shader_core_ctx::issue_block2core(kernel_info_t &kernel) {
       break;
     }
   }
-  // m_cta_progress[free_cta_hw_id] = 0;
+  num_cta_insts_issued[free_cta_hw_id]=0;
   assert(free_cta_hw_id != (unsigned)-1);
 
   // determine hardware threads and warps that will be used for this CTA
