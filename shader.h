@@ -234,10 +234,6 @@ class shd_warp_t {
   }
 
   unsigned get_cta_id() const { return m_cta_id; }
-  double cta_progress() {
-    
-    return 0.0;
-  }
 
   unsigned get_dynamic_warp_id() const { return m_dynamic_warp_id; }
   unsigned get_warp_id() const { return m_warp_id; }
@@ -2165,11 +2161,6 @@ class shader_core_ctx : public core_t {
 
   void create_front_pipeline();
   void create_schedulers();
-  // void create_kaws_schedulers(); // we do not need this, because if we clear schedulers array and re-initialise it
-                                 // there is danger that we might change some crucial data regarding warps executed
-                                 // so instead we can put an if-else statement in sort_warps_... function of lrr
-                                 // so that when last cta is not issued some comparator is used and when last
-                                 // cta is issued some other comparator is issued
   void create_exec_pipeline();
 
   // pure virtual methods implemented based on the current execution mode
