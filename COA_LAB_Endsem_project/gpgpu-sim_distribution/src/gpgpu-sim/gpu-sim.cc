@@ -61,7 +61,6 @@
 #include "../gpgpusim_entrypoint.h"
 #include "../statwrapper.h"
 #include "../trace.h"
-#include "../cta_counters.h"
 #include "mem_latency_stat.h"
 #include "power_stat.h"
 #include "stats.h"
