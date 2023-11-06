@@ -1600,6 +1600,7 @@ void shader_core_ctx::issue_block2core(kernel_info_t &kernel) {
       break;
     }
   }
+  // m_cta_progress[free_cta_hw_id] = 0;
   assert(free_cta_hw_id != (unsigned)-1);
 
   // determine hardware threads and warps that will be used for this CTA
@@ -1693,13 +1694,13 @@ void shader_core_ctx::issue_block2core(kernel_info_t &kernel) {
                  free_cta_hw_id, start_thread, end_thread, m_gpu->gpu_sim_cycle,
                  m_gpu->gpu_tot_sim_cycle);
 
-  printf("Hello!!!!!\n");
-  if (kernel.is_last_CTA()) {
-    printf("Hello, World!\n\n\n");
-    // uncomment below after implementing kaws_scheduler
-    // update sched_config and NUM_CONCRETE_SCHEDULERS
-    // create_kaws_schedulers();
-  }
+  // printf("Hello!!!!!\n");
+  // if (kernel.is_last_CTA()) {
+  //   printf("Hello, World!\n\n\n");
+  //   // uncomment below after implementing kaws_scheduler
+  //   // update sched_config and NUM_CONCRETE_SCHEDULERS
+  //   create_kaws_schedulers();
+  // }
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////

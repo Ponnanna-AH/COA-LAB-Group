@@ -182,7 +182,9 @@ void shader_core_ctx::create_schedulers() {
                             : sched_config.find("warp_limiting") !=
                                       std::string::npos
                                   ? CONCRETE_SCHEDULER_WARP_LIMITING
-                                  : NUM_CONCRETE_SCHEDULERS;
+                                  : sched_config.find("kaws") != std::string::npos
+                                        ? CONCRETE_SCHEDULER_KAWS
+                                        : NUM_CONCRETE_SCHEDULERS;
   assert(scheduler != NUM_CONCRETE_SCHEDULERS);
 
   for (unsigned i = 0; i < m_config->gpgpu_num_sched_per_core; i++) {
@@ -227,6 +229,14 @@ void shader_core_ctx::create_schedulers() {
             &m_pipeline_reg[ID_OC_TENSOR_CORE], m_specilized_dispatch_reg,
             &m_pipeline_reg[ID_OC_MEM], i, m_config->gpgpu_scheduler_string));
         break;
+      case CONCRETE_SCHEDULER_KAWS:
+        schedulers.push_back(new kaws_scheduler(
+            m_stats, this, m_scoreboard, m_simt_stack, &m_warp,
+            &m_pipeline_reg[ID_OC_SP], &m_pipeline_reg[ID_OC_DP],
+            &m_pipeline_reg[ID_OC_SFU], &m_pipeline_reg[ID_OC_INT],
+            &m_pipeline_reg[ID_OC_TENSOR_CORE], m_specilized_dispatch_reg,
+            &m_pipeline_reg[ID_OC_MEM], i));
+        break;
       default:
         abort();
     };
@@ -255,8 +265,11 @@ void shader_core_ctx::create_kaws_schedulers() {
   // scedulers
   // must currently occur after all inputs have been initialized.
   std::string sched_config = m_config->gpgpu_scheduler_string;
-  const concrete_scheduler scheduler = CONCRETE_SCHEDULER_KAWS;
-  assert(scheduler != NUM_CONCRETE_SCHEDULERS);
+  const concrete_scheduler scheduler =
+      sched_config.find("kaws") != std::string::npos
+          ? CONCRETE_SCHEDULER_KAWS
+          : NUM_CONCRETE_SCHEDULERS;
+  // assert(scheduler != NUM_CONCRETE_SCHEDULERS);
 
   // remove earlier schedulers
   schedulers.clear();
@@ -1209,6 +1222,7 @@ void scheduler_unit::cycle() {
         unsigned issued = 0;
         exec_unit_type_t previous_issued_inst_exec_type = exec_unit_type_t::NONE;
         unsigned max_issue = m_shader->m_config->gpgpu_max_insn_issue_per_warp;
+        // printf("%d !@#$\n", max_issue);
         bool diff_exec_units =
             m_shader->m_config
                 ->gpgpu_dual_issue_diff_exec_units;  // In tis mode, we only allow
@@ -1436,7 +1450,7 @@ void scheduler_unit::cycle() {
                 warp(warp_id).ibuffer_flush();
             }
             if (warp_inst_issued) {
-
+              // (*iter)->get_shader()->m_c[cta_id]++;
               warp_insts_issued[warp_id]++;
 
                 SCHED_DPRINTF(
@@ -1529,10 +1543,18 @@ void lrr_scheduler::order_warps() {
 }
 
 void kaws_scheduler::order_warps() {
-  order_by_priority(m_next_cycle_prioritized_warps, m_supervised_warps,
+  // if (!kernel.is_last_CTA()) {
+  //   printf("KAWS !\n");
+  //   order_lrr(m_next_cycle_prioritized_warps, m_supervised_warps,
+  //           m_last_supervised_issued, m_supervised_warps.size());
+  // } else {
+    printf("KAWS !\n");
+    MAX_CTA_PER_SHADER
+    order_by_priority(m_next_cycle_prioritized_warps, m_supervised_warps,
                     m_last_supervised_issued, m_supervised_warps.size(),
-                    ORDERING_BY_CTA_PROGRESS,
-                    scheduler_unit::sort_warps_by_cta_progress);
+                    ORDERING_GREEDY_THEN_PRIORITY_FUNC,
+                    scheduler_unit::sort_warps_by_oldest_dynamic_id);
+  // }
 }
 
 void gto_scheduler::order_warps() {
