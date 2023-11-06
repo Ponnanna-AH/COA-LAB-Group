@@ -37,6 +37,9 @@
 #include "../cuda-sim/ptx_sim.h"
 #include "../statwrapper.h"
 #include "../cta_counters.h"
+// int num_ctas;
+// int* num_cta_insts_issued;
+// bool is_last_cta_issued;
 #include "addrdec.h"
 #include "dram.h"
 #include "gpu-misc.h"
@@ -229,14 +232,14 @@ void shader_core_ctx::create_schedulers() {
             &m_pipeline_reg[ID_OC_TENSOR_CORE], m_specilized_dispatch_reg,
             &m_pipeline_reg[ID_OC_MEM], i, m_config->gpgpu_scheduler_string));
         break;
-      case CONCRETE_SCHEDULER_KAWS:
-        schedulers.push_back(new kaws_scheduler(
-            m_stats, this, m_scoreboard, m_simt_stack, &m_warp,
-            &m_pipeline_reg[ID_OC_SP], &m_pipeline_reg[ID_OC_DP],
-            &m_pipeline_reg[ID_OC_SFU], &m_pipeline_reg[ID_OC_INT],
-            &m_pipeline_reg[ID_OC_TENSOR_CORE], m_specilized_dispatch_reg,
-            &m_pipeline_reg[ID_OC_MEM], i));
-        break;
+      // case CONCRETE_SCHEDULER_KAWS:
+      //   schedulers.push_back(new kaws_scheduler(
+      //       m_stats, this, m_scoreboard, m_simt_stack, &m_warp,
+      //       &m_pipeline_reg[ID_OC_SP], &m_pipeline_reg[ID_OC_DP],
+      //       &m_pipeline_reg[ID_OC_SFU], &m_pipeline_reg[ID_OC_INT],
+      //       &m_pipeline_reg[ID_OC_TENSOR_CORE], m_specilized_dispatch_reg,
+      //       &m_pipeline_reg[ID_OC_MEM], i));
+      //   break;
       default:
         abort();
     };
@@ -245,9 +248,9 @@ void shader_core_ctx::create_schedulers() {
   // Try to print here cta id by using warp(warp_id).get_cta_id()
   // Maybe this will return concurrent or original cta id
 
-  int * num_cta_insts_issued=(int*)calloc(m_warp.size(), MAX_CTA_PER_SHADER);
-  bool is_last_cta_issued=false;
-  int num_ctas=MAX_CTA_PER_SHADER;
+  // num_cta_insts_issued=(int*)calloc(MAX_CTA_PER_SHADER, sizeof(int));
+  is_last_cta_issued=false;
+  // num_ctas=MAX_CTA_PER_SHADER;
 
   for (unsigned i = 0; i < m_warp.size(); i++) {
     // distribute i's evenly though schedulers;
@@ -259,39 +262,39 @@ void shader_core_ctx::create_schedulers() {
   }
 }
 
-void shader_core_ctx::create_kaws_schedulers() {
-  m_scoreboard = new Scoreboard(m_sid, m_config->max_warps_per_shader, m_gpu);
+// void shader_core_ctx::create_kaws_schedulers() {
+//   m_scoreboard = new Scoreboard(m_sid, m_config->max_warps_per_shader, m_gpu);
 
-  // scedulers
-  // must currently occur after all inputs have been initialized.
-  std::string sched_config = m_config->gpgpu_scheduler_string;
-  const concrete_scheduler scheduler =
-      sched_config.find("kaws") != std::string::npos
-          ? CONCRETE_SCHEDULER_KAWS
-          : NUM_CONCRETE_SCHEDULERS;
-  // assert(scheduler != NUM_CONCRETE_SCHEDULERS);
+//   // scedulers
+//   // must currently occur after all inputs have been initialized.
+//   std::string sched_config = m_config->gpgpu_scheduler_string;
+//   const concrete_scheduler scheduler =
+//       sched_config.find("kaws") != std::string::npos
+//           ? CONCRETE_SCHEDULER_KAWS
+//           : NUM_CONCRETE_SCHEDULERS;
+//   // assert(scheduler != NUM_CONCRETE_SCHEDULERS);
 
-  // remove earlier schedulers
-  schedulers.clear();
+//   // remove earlier schedulers
+//   schedulers.clear();
 
-  for (unsigned i = 0; i < m_config->gpgpu_num_sched_per_core; i++) {
-    schedulers.push_back(new kaws_scheduler(
-            m_stats, this, m_scoreboard, m_simt_stack, &m_warp,
-            &m_pipeline_reg[ID_OC_SP], &m_pipeline_reg[ID_OC_DP],
-            &m_pipeline_reg[ID_OC_SFU], &m_pipeline_reg[ID_OC_INT],
-            &m_pipeline_reg[ID_OC_TENSOR_CORE], m_specilized_dispatch_reg,
-            &m_pipeline_reg[ID_OC_MEM], i));
-  }
+//   for (unsigned i = 0; i < m_config->gpgpu_num_sched_per_core; i++) {
+//     schedulers.push_back(new kaws_scheduler(
+//             m_stats, this, m_scoreboard, m_simt_stack, &m_warp,
+//             &m_pipeline_reg[ID_OC_SP], &m_pipeline_reg[ID_OC_DP],
+//             &m_pipeline_reg[ID_OC_SFU], &m_pipeline_reg[ID_OC_INT],
+//             &m_pipeline_reg[ID_OC_TENSOR_CORE], m_specilized_dispatch_reg,
+//             &m_pipeline_reg[ID_OC_MEM], i));
+//   }
 
-  for (unsigned i = 0; i < m_warp.size(); i++) {
-    // distribute i's evenly though schedulers;
-    schedulers[i % m_config->gpgpu_num_sched_per_core]->add_supervised_warp_id(
-        i);
-  }
-  for (unsigned i = 0; i < m_config->gpgpu_num_sched_per_core; ++i) {
-    schedulers[i]->done_adding_supervised_warps();
-  }
-}
+//   for (unsigned i = 0; i < m_warp.size(); i++) {
+//     // distribute i's evenly though schedulers;
+//     schedulers[i % m_config->gpgpu_num_sched_per_core]->add_supervised_warp_id(
+//         i);
+//   }
+//   for (unsigned i = 0; i < m_config->gpgpu_num_sched_per_core; ++i) {
+//     schedulers[i]->done_adding_supervised_warps();
+//   }
+// }
 
 void shader_core_ctx::create_exec_pipeline() {
   // op collector configuration
@@ -1450,7 +1453,7 @@ void scheduler_unit::cycle() {
                 warp(warp_id).ibuffer_flush();
             }
             if (warp_inst_issued) {
-                num_cta_insts_issued[(*iter)->get_cta_id()]++;
+                (*iter)->get_shader()->num_cta_insts_issued[(*iter)->get_cta_id()]++;
                 SCHED_DPRINTF(
                     "Warp (warp_id %u, dynamic_warp_id %u) issued %u instructions\n",
                     (*iter)->get_warp_id(), (*iter)->get_dynamic_warp_id(), issued);
@@ -1540,20 +1543,20 @@ void lrr_scheduler::order_warps() {
             m_last_supervised_issued, m_supervised_warps.size());
 }
 
-void kaws_scheduler::order_warps() {
-  // if (!kernel.is_last_CTA()) {
-  //   printf("KAWS !\n");
-  //   order_lrr(m_next_cycle_prioritized_warps, m_supervised_warps,
-  //           m_last_supervised_issued, m_supervised_warps.size());
-  // } else {
-    printf("KAWS !\n");
-    MAX_CTA_PER_SHADER
-    order_by_priority(m_next_cycle_prioritized_warps, m_supervised_warps,
-                    m_last_supervised_issued, m_supervised_warps.size(),
-                    ORDERING_GREEDY_THEN_PRIORITY_FUNC,
-                    scheduler_unit::sort_warps_by_oldest_dynamic_id);
-  // }
-}
+// void kaws_scheduler::order_warps() {
+//   // if (!kernel.is_last_CTA()) {
+//   //   printf("KAWS !\n");
+//   //   order_lrr(m_next_cycle_prioritized_warps, m_supervised_warps,
+//   //           m_last_supervised_issued, m_supervised_warps.size());
+//   // } else {
+//     printf("KAWS !\n");
+//     MAX_CTA_PER_SHADER
+//     order_by_priority(m_next_cycle_prioritized_warps, m_supervised_warps,
+//                     m_last_supervised_issued, m_supervised_warps.size(),
+//                     ORDERING_GREEDY_THEN_PRIORITY_FUNC,
+//                     scheduler_unit::sort_warps_by_oldest_dynamic_id);
+//   // }
+// }
 
 void gto_scheduler::order_warps() {
   order_by_priority(m_next_cycle_prioritized_warps, m_supervised_warps,
@@ -2784,10 +2787,10 @@ void shader_core_ctx::register_cta_thread_exit(unsigned cta_num,
   assert(m_cta_status[cta_num] > 0);
   m_cta_status[cta_num]--;
   if (!m_cta_status[cta_num]) {
-    for (int z=0; z<num_ctas; z++) {
-      printf("%d ", num_cta_insts_issued[z]);
-    }
-    printf("\n");
+    // for (int z=0; z<num_ctas; z++) {
+    //   printf("%d ", num_cta_insts_issued[z]);
+    // }
+    printf("cta id %d insts issued %d\n", cta_num, num_cta_insts_issued[cta_num]);
     // Increment the completed CTAs
     m_stats->ctas_completed++;
     m_gpu->inc_completed_cta();

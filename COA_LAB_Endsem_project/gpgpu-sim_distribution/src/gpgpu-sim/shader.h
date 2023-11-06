@@ -2288,6 +2288,7 @@ class shader_core_ctx : public core_t {
   void release_shader_resource_1block(unsigned hw_ctaid, kernel_info_t &kernel);
   int find_available_hwtid(unsigned int cta_size, bool occupy);
   int num_cta_insts_issued[MAX_CTA_PER_SHADER];
+  bool is_last_cta_issued;
 
  private:
   unsigned int m_occupied_n_threads;

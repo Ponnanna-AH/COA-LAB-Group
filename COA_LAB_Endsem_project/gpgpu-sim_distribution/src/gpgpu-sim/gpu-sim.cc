@@ -1695,12 +1695,13 @@ void shader_core_ctx::issue_block2core(kernel_info_t &kernel) {
                  m_gpu->gpu_tot_sim_cycle);
 
   // printf("Hello!!!!!\n");
-  // if (kernel.is_last_CTA()) {
+  if (kernel.is_last_CTA()) {
+      is_last_cta_issued=true;
   //   printf("Hello, World!\n\n\n");
   //   // uncomment below after implementing kaws_scheduler
   //   // update sched_config and NUM_CONCRETE_SCHEDULERS
   //   create_kaws_schedulers();
-  // }
+  }
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////
