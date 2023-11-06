@@ -400,6 +400,7 @@ class scheduler_unit {  // this can be copied freely, so can be used in std
   virtual void order_warps() = 0;
 
   int get_schd_id() const { return m_id; }
+  shader_core_ctx* get_shader() { return m_shader; }
 
  protected:
   virtual void do_on_warp_issued(

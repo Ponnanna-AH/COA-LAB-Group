@@ -1486,12 +1486,14 @@ bool scheduler_unit::sort_warps_by_oldest_dynamic_id(shd_warp_t *lhs,
 }
 
 bool scheduler_unit::sort_warps_by_cta_progress(shd_warp_t *lhs,
-                                                     shd_warp_t *rhs) {
+                                                shd_warp_t *rhs) {
   if (rhs && lhs) {
     if (lhs->get_cta_id() == rhs->get_cta_id()) {
       return false;
     } else {
-      if (lhs->cta_progress() < rhs->cta_progress()) {
+      int left_cta_id=lhs->get_cta_id();
+      int right_cta_id=rhs->get_cta_id();
+      if (lhs->get_shader()->num_cta_insts_issued[left_cta_id] < rhs->get_shader()->num_cta_insts_issued[right_cta_id]) {
         return false;
       } else {
         return true;
@@ -1509,16 +1511,16 @@ void lrr_scheduler::order_warps() {
 }
 
 void kaws_scheduler::order_warps() {
-  // if (!kernel.is_last_CTA()) {
-  //   printf("KAWS !\n");
-  //   order_lrr(m_next_cycle_prioritized_warps, m_supervised_warps,
-  //           m_last_supervised_issued, m_supervised_warps.size());
-  // } else {
+  bool isKAWS=this->get_shader()->is_last_cta_issued;
+  if (isKAWS) {
     order_by_priority(m_next_cycle_prioritized_warps, m_supervised_warps,
                     m_last_supervised_issued, m_supervised_warps.size(),
                     ORDERING_GREEDY_THEN_PRIORITY_FUNC,
                     scheduler_unit::sort_warps_by_cta_progress);
-  // }
+  } else {
+    order_lrr(m_next_cycle_prioritized_warps, m_supervised_warps,
+            m_last_supervised_issued, m_supervised_warps.size());
+  }
 }
 
 void gto_scheduler::order_warps() {
