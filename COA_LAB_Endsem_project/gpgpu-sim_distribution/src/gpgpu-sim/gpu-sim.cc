@@ -1684,7 +1684,7 @@ void shader_core_ctx::issue_block2core(kernel_info_t &kernel) {
   init_warps(free_cta_hw_id, start_thread, end_thread, ctaid, cta_size, kernel);
   m_n_active_cta++;
 
-  // printf("!@#$ %d\n", ctaid);
+  printf("!@#$ %d\n", ctaid);
 
   shader_CTA_count_log(m_sid, 1);
   SHADER_DPRINTF(LIVENESS,
@@ -1693,13 +1693,13 @@ void shader_core_ctx::issue_block2core(kernel_info_t &kernel) {
                  free_cta_hw_id, start_thread, end_thread, m_gpu->gpu_sim_cycle,
                  m_gpu->gpu_tot_sim_cycle);
 
-  // printf("Hello!!!!!\n");
-  // if (kernel.is_last_CTA()) {
-  //   printf("Hello, World!\n\n\n");
-  //   // uncomment below after implementing kaws_scheduler
-  //   // update sched_config and NUM_CONCRETE_SCHEDULERS
-  //   create_kaws_schedulers();
-  // }
+  printf("Hello!!!!!\n");
+  if (kernel.is_last_CTA()) {
+    printf("Hello, World!\n\n\n");
+    // uncomment below after implementing kaws_scheduler
+    // update sched_config and NUM_CONCRETE_SCHEDULERS
+    // create_kaws_schedulers();
+  }
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////

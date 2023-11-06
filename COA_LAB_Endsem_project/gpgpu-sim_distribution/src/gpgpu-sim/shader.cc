@@ -1164,7 +1164,7 @@ void scheduler_unit::order_by_priority(
     abort();
   }
 }
-// int abcd=1;
+
 void scheduler_unit::cycle() {
   SCHED_DPRINTF("scheduler_unit::cycle()\n");
   bool valid_inst =
