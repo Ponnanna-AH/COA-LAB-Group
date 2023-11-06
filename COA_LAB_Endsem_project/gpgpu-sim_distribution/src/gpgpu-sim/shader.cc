@@ -1512,8 +1512,10 @@ void kaws_scheduler::order_warps() {
                     ORDERING_BY_CTA_PROGRESS,
                     scheduler_unit::sort_warps_by_cta_progress);
   } else {
-    order_lrr(m_next_cycle_prioritized_warps, m_supervised_warps,
-            m_last_supervised_issued, m_supervised_warps.size());
+    order_by_priority(m_next_cycle_prioritized_warps, m_supervised_warps,
+                    m_last_supervised_issued, m_supervised_warps.size(),
+                    ORDERING_GREEDY_THEN_PRIORITY_FUNC,
+                    scheduler_unit::sort_warps_by_oldest_dynamic_id);
   }
 }
 
