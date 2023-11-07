@@ -1,0 +1,62 @@
+BENCHMARKS
+
+1 - HOTSPOT
+2 - B+ TREE
+3 - STREAM CLUSTER 
+4 - PATHFINDER
+
+
+Setup Commands
+
+Clone the repository
+cd to the path where you cloned the repo in your local device
+cd to gpu-rodinia Folder
+cd to whichever Benchmark Folder you wish to execute
+Copy gpgpusim.config file from Endsem project Folder and paste it here
+Edit the scheduler chosen ( gto / lrr / kaws ) on line 89 in the copied gpgpusim.config file
+setup source environment
+run "make" command
+Run the commands mentioned in the README folder of the benchmark folder
+Run the commands mentioned in the run file of the benchmark folder
+
+
+Results (for Hotspot benchmark)
+
+
+LRR
+
+IPS = 749910 instructions per seconds
+CPS = 348 cycles per second
+
+=> IPC = IPS/CPS = 2154
+
+
+GTO
+
+IPS = 708577 instructions per second
+CPS = 291 cycles per second
+
+=> IPC = IPS/CPS = 2433
+
+
+KAWS
+
+IPS = 692225 instructions per seconds
+CPS = 284 cycles per seconds
+
+=> IPC = IPS/CPS = 2439
+
+
+Taking LRR as baseline, performance values for different schedulers
+
+Our Results -
+
+LRR = 100%
+GTO = 113.05%
+KAWS = 113.34%
+
+Author results ( from Research Paper )
+
+LRR = 100%
+GTO = 117.03%
+KAWS = 119.64%
