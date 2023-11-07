@@ -239,13 +239,8 @@ void shader_core_ctx::create_schedulers() {
         abort();
     };
   }
-  // Here m_warp.size() is the total number of warps in a core, because we are in shader_core_ctx class
-  // Try to print here cta id by using warp(warp_id).get_cta_id()
-  // Maybe this will return concurrent or original cta id
-
-  // num_cta_insts_issued=(int*)calloc(MAX_CTA_PER_SHADER, sizeof(int));
+ 
   is_last_cta_issued=false;
-  // num_ctas=MAX_CTA_PER_SHADER;
 
   for (unsigned i = 0; i < m_warp.size(); i++) {
     // distribute i's evenly though schedulers;
@@ -513,7 +508,7 @@ void shader_core_ctx::reinit(unsigned start_thread, unsigned end_thread,
     m_simt_stack[i]->reset();
   }
 }
-// Endsem
+
 void shader_core_ctx::init_warps(unsigned cta_id, unsigned start_thread,
                                  unsigned end_thread, unsigned ctaid,
                                  int cta_size, kernel_info_t &kernel) {
@@ -900,7 +895,7 @@ void shader_core_ctx::decode() {
     m_inst_fetch_buffer.m_valid = false;
   }
 }
-// Endsem
+
 void shader_core_ctx::fetch() {
   if (!m_inst_fetch_buffer.m_valid) {
     if (m_L1I->access_ready()) {
@@ -1085,21 +1080,21 @@ shd_warp_t &scheduler_unit::warp(int i) { return *((*m_warp)[i]); }
  */
 template <class T>
 void scheduler_unit::order_lrr(
-        std::vector<T> &result_list, const typename std::vector<T> &input_list,
-        const typename std::vector<T>::const_iterator &last_issued_from_input,
-        unsigned num_warps_to_add) {
-    assert(num_warps_to_add <= input_list.size());
-    result_list.clear();
-    typename std::vector<T>::const_iterator iter = (last_issued_from_input == input_list.end()) 
-                                                        ? input_list.begin()
-                                                        : last_issued_from_input + 1;
+    std::vector<T> &result_list, const typename std::vector<T> &input_list,
+    const typename std::vector<T>::const_iterator &last_issued_from_input,
+    unsigned num_warps_to_add) {
+  assert(num_warps_to_add <= input_list.size());
+  result_list.clear();
+  typename std::vector<T>::const_iterator iter =
+      (last_issued_from_input == input_list.end()) ? input_list.begin()
+                                                   : last_issued_from_input + 1;
   
-    for (unsigned count = 0; count < num_warps_to_add; ++iter, ++count) {
-        if (iter == input_list.end()) {
-            iter = input_list.begin();
-        }
-        result_list.push_back(*iter);
-    }
+  for (unsigned count = 0; count < num_warps_to_add; ++iter, ++count) {
+      if (iter == input_list.end()) {
+          iter = input_list.begin();
+      }
+      result_list.push_back(*iter);
+  }
 }
 
 /**
@@ -2742,7 +2737,7 @@ void ldst_unit::cycle() {
     }
   }
 }
-// Endsem
+
 void shader_core_ctx::register_cta_thread_exit(unsigned cta_num,
                                                kernel_info_t *kernel) {
   assert(m_cta_status[cta_num] > 0);
@@ -3258,7 +3253,7 @@ void shader_core_ctx::display_pipeline(FILE *fout, int print_mem,
     }
   }
 }
-// Endsem
+
 unsigned int shader_core_config::max_cta(const kernel_info_t &k) const {
   unsigned threads_per_cta = k.threads_per_cta();
   const class function_info *kernel = k.entry();
@@ -4027,7 +4022,7 @@ void opndcoll_rfu_t::dispatch_ready_cu() {
     }
   }
 }
-// Endsem
+
 void opndcoll_rfu_t::allocate_cu(unsigned port_num) {
   input_port_t &inp = m_in_ports[port_num];
   for (unsigned i = 0; i < inp.m_in.size(); i++) {
@@ -4190,7 +4185,7 @@ simt_core_cluster::simt_core_cluster(class gpgpu_sim *gpu, unsigned cluster_id,
   m_memory_stats = mstats;
   m_mem_config = mem_config;
 }
-// Endsem
+
 void simt_core_cluster::core_cycle() {
   for (std::list<unsigned>::iterator it = m_core_sim_order.begin();
        it != m_core_sim_order.end(); ++it) {
