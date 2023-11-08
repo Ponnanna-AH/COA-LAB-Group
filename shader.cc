@@ -158,7 +158,7 @@ void shader_core_ctx::create_front_pipeline() {
                               get_shader_instruction_cache_id(), m_icnt,
                               IN_L1I_MISS_QUEUE);
 }
-
+// This function initializes schedulers before CTAs are being issued
 void shader_core_ctx::create_schedulers() {
   m_scoreboard = new Scoreboard(m_sid, m_config->max_warps_per_shader, m_gpu);
 
@@ -174,16 +174,27 @@ void shader_core_ctx::create_schedulers() {
                       ? CONCRETE_SCHEDULER_GTO
                       : sched_config.find("old") != std::string::npos
                             ? CONCRETE_SCHEDULER_OLDEST_FIRST
-                            : sched_config.find("warp_limiting") !=
-                                      std::string::npos
+                            : sched_config.find("warp_limiting") != std::string::npos
                                   ? CONCRETE_SCHEDULER_WARP_LIMITING
-                                  : NUM_CONCRETE_SCHEDULERS;
+                                  : sched_config.find("kaws") != std::string::npos // extra parameter "kaws" is implemented so that
+                                                                                   // scheduler can be set in gpgpu-sim.config file
+                                        ? CONCRETE_SCHEDULER_KAWS
+                                        : NUM_CONCRETE_SCHEDULERS;
   assert(scheduler != NUM_CONCRETE_SCHEDULERS);
 
   for (unsigned i = 0; i < m_config->gpgpu_num_sched_per_core; i++) {
     switch (scheduler) {
       case CONCRETE_SCHEDULER_LRR:
         schedulers.push_back(new lrr_scheduler(
+            m_stats, this, m_scoreboard, m_simt_stack, &m_warp,
+            &m_pipeline_reg[ID_OC_SP], &m_pipeline_reg[ID_OC_DP],
+            &m_pipeline_reg[ID_OC_SFU], &m_pipeline_reg[ID_OC_INT],
+            &m_pipeline_reg[ID_OC_TENSOR_CORE], m_specilized_dispatch_reg,
+            &m_pipeline_reg[ID_OC_MEM], i));
+        break;
+      // additional case for KAWS is added to create kaws_schdeuler object
+      case CONCRETE_SCHEDULER_KAWS:
+        schedulers.push_back(new kaws_scheduler(
             m_stats, this, m_scoreboard, m_simt_stack, &m_warp,
             &m_pipeline_reg[ID_OC_SP], &m_pipeline_reg[ID_OC_DP],
             &m_pipeline_reg[ID_OC_SFU], &m_pipeline_reg[ID_OC_INT],
@@ -226,6 +237,9 @@ void shader_core_ctx::create_schedulers() {
         abort();
     };
   }
+  // since this function is called before shader_core_ctx::issue_block2core,
+  // it is safe to set is_last_cta_issued flag to "false"
+  is_last_cta_issued = false;
 
   for (unsigned i = 0; i < m_warp.size(); i++) {
     // distribute i's evenly though schedulers;
@@ -1073,12 +1087,12 @@ void scheduler_unit::order_lrr(
   typename std::vector<T>::const_iterator iter =
       (last_issued_from_input == input_list.end()) ? input_list.begin()
                                                    : last_issued_from_input + 1;
-
+  
   for (unsigned count = 0; count < num_warps_to_add; ++iter, ++count) {
-    if (iter == input_list.end()) {
-      iter = input_list.begin();
-    }
-    result_list.push_back(*iter);
+      if (iter == input_list.end()) {
+          iter = input_list.begin();
+      }
+      result_list.push_back(*iter);
   }
 }
 
@@ -1121,12 +1135,18 @@ void scheduler_unit::order_by_priority(
     for (unsigned count = 0; count < num_warps_to_add; ++count, ++iter) {
       result_list.push_back(*iter);
     }
+  } else if (ORDERING_BY_CTA_PROGRESS == ordering) { // additional conditional statement for KAWS
+    std::sort(temp.begin(), temp.end(), priority_func);
+    typename std::vector<T>::iterator iter = temp.begin();
+    for (unsigned count = 0; count < num_warps_to_add; ++count, ++iter) {
+      result_list.push_back(*iter);
+    }
   } else {
     fprintf(stderr, "Unknown ordering - %d\n", ordering);
     abort();
   }
 }
-
+// This function issues instructions per clock cycle
 void scheduler_unit::cycle() {
   SCHED_DPRINTF("scheduler_unit::cycle()\n");
   bool valid_inst =
@@ -1386,6 +1406,8 @@ void scheduler_unit::cycle() {
         warp(warp_id).ibuffer_flush();
       }
       if (warp_inst_issued) {
+        // incrementing CTA progress by obtaining the warp pointer "*iter"
+        (*iter)->get_shader()->num_cta_insts_issued[(*iter)->get_cta_id()]++;
         SCHED_DPRINTF(
             "Warp (warp_id %u, dynamic_warp_id %u) issued %u instructions\n",
             (*iter)->get_warp_id(), (*iter)->get_dynamic_warp_id(), issued);
@@ -1451,10 +1473,47 @@ bool scheduler_unit::sort_warps_by_oldest_dynamic_id(shd_warp_t *lhs,
     return lhs < rhs;
   }
 }
+// Comparator function to sort warps based on CTA progress
+// Returns "true" if rhs is prioritized over lhs else "false"
+bool scheduler_unit::sort_warps_by_cta_progress(shd_warp_t *lhs,
+                                                shd_warp_t *rhs) {
+  if (rhs && lhs) {
+    if (lhs->get_cta_id() == rhs->get_cta_id()) {
+      return false;
+    } else {
+      int left_cta_id = lhs->get_cta_id();
+      int right_cta_id = rhs->get_cta_id();
+      if (lhs->get_shader()->num_cta_insts_issued[left_cta_id] < rhs->get_shader()->num_cta_insts_issued[right_cta_id]) {
+        return false;
+      } else {
+        return true;
+      }
+    }
+  } else {
+    return lhs < rhs;
+  }
+  return false;
+}
 
 void lrr_scheduler::order_warps() {
   order_lrr(m_next_cycle_prioritized_warps, m_supervised_warps,
             m_last_supervised_issued, m_supervised_warps.size());
+}
+// Prioritizing warps is taken care by this function
+void kaws_scheduler::order_warps() {
+  // track when the last CTA was issued
+  bool milestone_reached = this->get_shader()->is_last_cta_issued;
+  if (milestone_reached) { // progress-based scheduling policy
+    order_by_priority(m_next_cycle_prioritized_warps, m_supervised_warps,
+                    m_last_supervised_issued, m_supervised_warps.size(),
+                    ORDERING_BY_CTA_PROGRESS,
+                    scheduler_unit::sort_warps_by_cta_progress);
+  } else { // age-based scheduling policy (assume GTO is default schdeuler)
+    order_by_priority(m_next_cycle_prioritized_warps, m_supervised_warps,
+                    m_last_supervised_issued, m_supervised_warps.size(),
+                    ORDERING_GREEDY_THEN_PRIORITY_FUNC,
+                    scheduler_unit::sort_warps_by_oldest_dynamic_id);
+  }
 }
 
 void gto_scheduler::order_warps() {
