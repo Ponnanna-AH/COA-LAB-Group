@@ -1572,7 +1572,7 @@ unsigned exec_shader_core_ctx::sim_init_thread(
   return ptx_sim_init_thread(kernel, thread_info, sid, tid, threads_left,
                              num_threads, core, hw_cta_id, hw_warp_id, gpu);
 }
-
+// This function is used to issue CTAs in a round-robin manner
 void shader_core_ctx::issue_block2core(kernel_info_t &kernel) {
   if (!m_config->gpgpu_concurrent_kernel_sm)
     set_max_cta(kernel);
@@ -1595,7 +1595,7 @@ void shader_core_ctx::issue_block2core(kernel_info_t &kernel) {
       break;
     }
   }
-  num_cta_insts_issued[free_cta_hw_id] = 0;
+  num_cta_insts_issued[free_cta_hw_id] = 0; // setting up CTA progress counters to zero 
   assert(free_cta_hw_id != (unsigned)-1);
 
   // determine hardware threads and warps that will be used for this CTA
@@ -1686,7 +1686,7 @@ void shader_core_ctx::issue_block2core(kernel_info_t &kernel) {
                  "initialized @(%lld,%lld)\n",
                  free_cta_hw_id, start_thread, end_thread, m_gpu->gpu_sim_cycle,
                  m_gpu->gpu_tot_sim_cycle);
-
+  // set the is_last_cta_issued flag to true when last CTA of the kernel is issued
   if (kernel.is_last_CTA()) {
       is_last_cta_issued = true;
   }
