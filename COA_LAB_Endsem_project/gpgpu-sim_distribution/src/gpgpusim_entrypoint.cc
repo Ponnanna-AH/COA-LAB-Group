@@ -30,7 +30,6 @@
 #include <stdio.h>
 
 #include "../libcuda/gpgpu_context.h"
-// #include "cta_counters.h"
 #include "cuda-sim/cuda-sim.h"
 #include "cuda-sim/ptx_ir.h"
 #include "cuda-sim/ptx_parser.h"
