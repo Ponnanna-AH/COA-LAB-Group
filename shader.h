@@ -43,7 +43,7 @@
 #include <utility>
 #include <vector>
 
-//#include "../cuda-sim/ptx.tab.h"
+// #include "../cuda-sim/ptx.tab.h"
 
 #include "../abstract_hardware_model.h"
 #include "delayqueue.h"
@@ -234,15 +234,12 @@ class shd_warp_t {
   }
 
   unsigned get_cta_id() const { return m_cta_id; }
-  double cta_progress() {
-    
-    return 0.0;
-  }
 
   unsigned get_dynamic_warp_id() const { return m_dynamic_warp_id; }
   unsigned get_warp_id() const { return m_warp_id; }
 
-  class shader_core_ctx * get_shader() { return m_shader; }
+  class shader_core_ctx *get_shader() { return m_shader; }
+
  private:
   static const unsigned IBUFFER_SIZE = 2;
   class shader_core_ctx *m_shader;
@@ -320,7 +317,6 @@ enum scheduler_prioritization_type {
 // For example - to specify the LRR scheudler the config must contain lrr
 enum concrete_scheduler {
   CONCRETE_SCHEDULER_LRR = 0,
-  CONCRETE_SCHEDULER_KAWS,
   CONCRETE_SCHEDULER_GTO,
   CONCRETE_SCHEDULER_TWO_LEVEL_ACTIVE,
   CONCRETE_SCHEDULER_WARP_LIMITING,
@@ -382,7 +378,6 @@ class scheduler_unit {  // this can be copied freely, so can be used in std
     // No greedy scheduling based on last to issue. Only the priority function
     // determines priority
     ORDERED_PRIORITY_FUNC_ONLY,
-    ORDERING_BY_CTA_PROGRESS,
     NUM_ORDERING,
   };
   template <typename U>
@@ -392,14 +387,12 @@ class scheduler_unit {  // this can be copied freely, so can be used in std
       unsigned num_warps_to_add, OrderingType age_ordering,
       bool (*priority_func)(U lhs, U rhs));
   static bool sort_warps_by_oldest_dynamic_id(shd_warp_t *lhs, shd_warp_t *rhs);
-  static bool sort_warps_by_cta_progress(shd_warp_t *lhs, shd_warp_t *rhs);
 
   // Derived classes can override this function to populate
   // m_supervised_warps with their scheduling policies
   virtual void order_warps() = 0;
 
   int get_schd_id() const { return m_id; }
-  shader_core_ctx* get_shader() { return m_shader; }
 
  protected:
   virtual void do_on_warp_issued(
@@ -455,25 +448,6 @@ class lrr_scheduler : public scheduler_unit {
   virtual void order_warps();
   virtual void done_adding_supervised_warps() {
     m_last_supervised_issued = m_supervised_warps.end();
-  }
-};
-
-class kaws_scheduler : public scheduler_unit {
- public:
-  kaws_scheduler(shader_core_stats *stats, shader_core_ctx *shader,
-                Scoreboard *scoreboard, simt_stack **simt,
-                std::vector<shd_warp_t *> *warp, register_set *sp_out,
-                register_set *dp_out, register_set *sfu_out,
-                register_set *int_out, register_set *tensor_core_out,
-                std::vector<register_set *> &spec_cores_out,
-                register_set *mem_out, int id)
-      : scheduler_unit(stats, shader, scoreboard, simt, warp, sp_out, dp_out,
-                       sfu_out, int_out, tensor_core_out, spec_cores_out,
-                       mem_out, id) {}
-  virtual ~kaws_scheduler() {}
-  virtual void order_warps();
-  virtual void done_adding_supervised_warps() {
-    m_last_supervised_issued = m_supervised_warps.begin();
   }
 };
 
@@ -2160,16 +2134,11 @@ class shader_core_ctx : public core_t {
   friend class TwoLevelScheduler;
   friend class LooseRoundRobbinScheduler;
   virtual void issue_warp(register_set &warp, const warp_inst_t *pI,
-                  const active_mask_t &active_mask, unsigned warp_id,
-                  unsigned sch_id);
+                          const active_mask_t &active_mask, unsigned warp_id,
+                          unsigned sch_id);
 
   void create_front_pipeline();
   void create_schedulers();
-  // void create_kaws_schedulers(); // we do not need this, because if we clear schedulers array and re-initialise it
-                                 // there is danger that we might change some crucial data regarding warps executed
-                                 // so instead we can put an if-else statement in sort_warps_... function of lrr
-                                 // so that when last cta is not issued some comparator is used and when last
-                                 // cta is issued some other comparator is issued
   void create_exec_pipeline();
 
   // pure virtual methods implemented based on the current execution mode
@@ -2287,8 +2256,6 @@ class shader_core_ctx : public core_t {
   bool occupy_shader_resource_1block(kernel_info_t &kernel, bool occupy);
   void release_shader_resource_1block(unsigned hw_ctaid, kernel_info_t &kernel);
   int find_available_hwtid(unsigned int cta_size, bool occupy);
-  int num_cta_insts_issued[MAX_CTA_PER_SHADER];
-  bool is_last_cta_issued;
 
  private:
   unsigned int m_occupied_n_threads;

@@ -52,10 +52,6 @@
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
-int num_warps = 0;
-int *cta_status = NULL;
-int *warp_insts_issued = NULL;
-
 mem_fetch *shader_core_mem_fetch_allocator::alloc(
     new_addr_type addr, mem_access_type type, unsigned size, bool wr,
     unsigned long long cycle) const {
@@ -170,33 +166,21 @@ void shader_core_ctx::create_schedulers() {
   // must currently occur after all inputs have been initialized.
   std::string sched_config = m_config->gpgpu_scheduler_string;
   const concrete_scheduler scheduler =
-      sched_config.find("lrr") != std::string::npos
-          ? CONCRETE_SCHEDULER_LRR
-          : sched_config.find("two_level_active") != std::string::npos
-                ? CONCRETE_SCHEDULER_TWO_LEVEL_ACTIVE
-                : sched_config.find("gto") != std::string::npos
-                      ? CONCRETE_SCHEDULER_GTO
-                      : sched_config.find("old") != std::string::npos
-                            ? CONCRETE_SCHEDULER_OLDEST_FIRST
-                            : sched_config.find("warp_limiting") != std::string::npos
-                                  ? CONCRETE_SCHEDULER_WARP_LIMITING
-                                  : sched_config.find("kaws") != std::string::npos
-                                        ? CONCRETE_SCHEDULER_KAWS
-                                        : NUM_CONCRETE_SCHEDULERS;
+      sched_config.find("lrr") != std::string::npos ? CONCRETE_SCHEDULER_LRR
+      : sched_config.find("two_level_active") != std::string::npos
+          ? CONCRETE_SCHEDULER_TWO_LEVEL_ACTIVE
+      : sched_config.find("gto") != std::string::npos ? CONCRETE_SCHEDULER_GTO
+      : sched_config.find("old") != std::string::npos
+          ? CONCRETE_SCHEDULER_OLDEST_FIRST
+      : sched_config.find("warp_limiting") != std::string::npos
+          ? CONCRETE_SCHEDULER_WARP_LIMITING
+          : NUM_CONCRETE_SCHEDULERS;
   assert(scheduler != NUM_CONCRETE_SCHEDULERS);
 
   for (unsigned i = 0; i < m_config->gpgpu_num_sched_per_core; i++) {
     switch (scheduler) {
       case CONCRETE_SCHEDULER_LRR:
         schedulers.push_back(new lrr_scheduler(
-            m_stats, this, m_scoreboard, m_simt_stack, &m_warp,
-            &m_pipeline_reg[ID_OC_SP], &m_pipeline_reg[ID_OC_DP],
-            &m_pipeline_reg[ID_OC_SFU], &m_pipeline_reg[ID_OC_INT],
-            &m_pipeline_reg[ID_OC_TENSOR_CORE], m_specilized_dispatch_reg,
-            &m_pipeline_reg[ID_OC_MEM], i));
-        break;
-      case CONCRETE_SCHEDULER_KAWS:
-        schedulers.push_back(new kaws_scheduler(
             m_stats, this, m_scoreboard, m_simt_stack, &m_warp,
             &m_pipeline_reg[ID_OC_SP], &m_pipeline_reg[ID_OC_DP],
             &m_pipeline_reg[ID_OC_SFU], &m_pipeline_reg[ID_OC_INT],
@@ -239,13 +223,6 @@ void shader_core_ctx::create_schedulers() {
         abort();
     };
   }
-  // Here m_warp.size() is the total number of warps in a core, because we are in shader_core_ctx class
-  // Try to print here cta id by using warp(warp_id).get_cta_id()
-  // Maybe this will return concurrent or original cta id
-
-  // num_cta_insts_issued=(int*)calloc(MAX_CTA_PER_SHADER, sizeof(int));
-  is_last_cta_issued=false;
-  // num_ctas=MAX_CTA_PER_SHADER;
 
   for (unsigned i = 0; i < m_warp.size(); i++) {
     // distribute i's evenly though schedulers;
@@ -513,7 +490,7 @@ void shader_core_ctx::reinit(unsigned start_thread, unsigned end_thread,
     m_simt_stack[i]->reset();
   }
 }
-// Endsem
+
 void shader_core_ctx::init_warps(unsigned cta_id, unsigned start_thread,
                                  unsigned end_thread, unsigned ctaid,
                                  int cta_size, kernel_info_t &kernel) {
@@ -900,7 +877,7 @@ void shader_core_ctx::decode() {
     m_inst_fetch_buffer.m_valid = false;
   }
 }
-// Endsem
+
 void shader_core_ctx::fetch() {
   if (!m_inst_fetch_buffer.m_valid) {
     if (m_L1I->access_ready()) {
@@ -1085,21 +1062,21 @@ shd_warp_t &scheduler_unit::warp(int i) { return *((*m_warp)[i]); }
  */
 template <class T>
 void scheduler_unit::order_lrr(
-        std::vector<T> &result_list, const typename std::vector<T> &input_list,
-        const typename std::vector<T>::const_iterator &last_issued_from_input,
-        unsigned num_warps_to_add) {
-    assert(num_warps_to_add <= input_list.size());
-    result_list.clear();
-    typename std::vector<T>::const_iterator iter = (last_issued_from_input == input_list.end()) 
-                                                        ? input_list.begin()
-                                                        : last_issued_from_input + 1;
-  
-    for (unsigned count = 0; count < num_warps_to_add; ++iter, ++count) {
-        if (iter == input_list.end()) {
-            iter = input_list.begin();
-        }
-        result_list.push_back(*iter);
+    std::vector<T> &result_list, const typename std::vector<T> &input_list,
+    const typename std::vector<T>::const_iterator &last_issued_from_input,
+    unsigned num_warps_to_add) {
+  assert(num_warps_to_add <= input_list.size());
+  result_list.clear();
+  typename std::vector<T>::const_iterator iter =
+      (last_issued_from_input == input_list.end()) ? input_list.begin()
+                                                   : last_issued_from_input + 1;
+
+  for (unsigned count = 0; count < num_warps_to_add; ++iter, ++count) {
+    if (iter == input_list.end()) {
+      iter = input_list.begin();
     }
+    result_list.push_back(*iter);
+  }
 }
 
 /**
@@ -1136,12 +1113,6 @@ void scheduler_unit::order_by_priority(
       }
     }
   } else if (ORDERED_PRIORITY_FUNC_ONLY == ordering) {
-    std::sort(temp.begin(), temp.end(), priority_func);
-    typename std::vector<T>::iterator iter = temp.begin();
-    for (unsigned count = 0; count < num_warps_to_add; ++count, ++iter) {
-      result_list.push_back(*iter);
-    }
-  } else if (ORDERING_BY_CTA_PROGRESS == ordering) {
     std::sort(temp.begin(), temp.end(), priority_func);
     typename std::vector<T>::iterator iter = temp.begin();
     for (unsigned count = 0; count < num_warps_to_add; ++count, ++iter) {
@@ -1195,6 +1166,11 @@ void scheduler_unit::cycle() {
           "barrier\n",
           (*iter)->get_warp_id(), (*iter)->get_dynamic_warp_id());
 
+    int schedule_id[7];
+    for (int i = 0; i < 7; i++) {
+      schedule_id[i] = m_id;
+    }
+
     while (!warp(warp_id).waiting() && !warp(warp_id).ibuffer_empty() &&
            (checked < max_issue) && (checked <= issued) &&
            (issued < max_issue)) {
@@ -1242,12 +1218,12 @@ void scheduler_unit::cycle() {
                 (pI->op == MEMORY_BARRIER_OP) ||
                 (pI->op == TENSOR_CORE_LOAD_OP) ||
                 (pI->op == TENSOR_CORE_STORE_OP)) {
-              if (m_mem_out->has_free(m_shader->m_config->sub_core_model,
-                                      m_id) &&
+              if (m_mem_out->has_free(m_shader->m_config->sub_core_model, m_id,
+                                      &schedule_id[0]) &&
                   (!diff_exec_units ||
                    previous_issued_inst_exec_type != exec_unit_type_t::MEM)) {
                 m_shader->issue_warp(*m_mem_out, pI, active_mask, warp_id,
-                                     m_id);
+                                     schedule_id[0]);
                 issued++;
                 issued_inst = true;
                 warp_inst_issued = true;
@@ -1256,20 +1232,25 @@ void scheduler_unit::cycle() {
             } else {
               bool sp_pipe_avail =
                   (m_shader->m_config->gpgpu_num_sp_units > 0) &&
-                  m_sp_out->has_free(m_shader->m_config->sub_core_model, m_id);
+                  m_sp_out->has_free(m_shader->m_config->sub_core_model, m_id,
+                                     &schedule_id[1]);
               bool sfu_pipe_avail =
                   (m_shader->m_config->gpgpu_num_sfu_units > 0) &&
-                  m_sfu_out->has_free(m_shader->m_config->sub_core_model, m_id);
+                  m_sfu_out->has_free(m_shader->m_config->sub_core_model, m_id,
+                                      &schedule_id[2]);
               bool tensor_core_pipe_avail =
                   (m_shader->m_config->gpgpu_num_tensor_core_units > 0) &&
                   m_tensor_core_out->has_free(
-                      m_shader->m_config->sub_core_model, m_id);
+                      m_shader->m_config->sub_core_model, m_id,
+                      &schedule_id[3]);
               bool dp_pipe_avail =
                   (m_shader->m_config->gpgpu_num_dp_units > 0) &&
-                  m_dp_out->has_free(m_shader->m_config->sub_core_model, m_id);
+                  m_dp_out->has_free(m_shader->m_config->sub_core_model, m_id,
+                                     &schedule_id[4]);
               bool int_pipe_avail =
                   (m_shader->m_config->gpgpu_num_int_units > 0) &&
-                  m_int_out->has_free(m_shader->m_config->sub_core_model, m_id);
+                  m_int_out->has_free(m_shader->m_config->sub_core_model, m_id,
+                                      &schedule_id[5]);
 
               // This code need to be refactored
               if (pI->op != TENSOR_CORE_OP && pI->op != SFU_OP &&
@@ -1320,14 +1301,14 @@ void scheduler_unit::cycle() {
 
                 if (execute_on_SP) {
                   m_shader->issue_warp(*m_sp_out, pI, active_mask, warp_id,
-                                       m_id);
+                                       schedule_id[1]);
                   issued++;
                   issued_inst = true;
                   warp_inst_issued = true;
                   previous_issued_inst_exec_type = exec_unit_type_t::SP;
                 } else if (execute_on_INT) {
                   m_shader->issue_warp(*m_int_out, pI, active_mask, warp_id,
-                                       m_id);
+                                       schedule_id[5]);
                   issued++;
                   issued_inst = true;
                   warp_inst_issued = true;
@@ -1339,7 +1320,7 @@ void scheduler_unit::cycle() {
                                                   exec_unit_type_t::DP)) {
                 if (dp_pipe_avail) {
                   m_shader->issue_warp(*m_dp_out, pI, active_mask, warp_id,
-                                       m_id);
+                                       schedule_id[4]);
                   issued++;
                   issued_inst = true;
                   warp_inst_issued = true;
@@ -1354,7 +1335,7 @@ void scheduler_unit::cycle() {
                                                 exec_unit_type_t::SFU)) {
                 if (sfu_pipe_avail) {
                   m_shader->issue_warp(*m_sfu_out, pI, active_mask, warp_id,
-                                       m_id);
+                                       schedule_id[2]);
                   issued++;
                   issued_inst = true;
                   warp_inst_issued = true;
@@ -1365,7 +1346,7 @@ void scheduler_unit::cycle() {
                                                   exec_unit_type_t::TENSOR)) {
                 if (tensor_core_pipe_avail) {
                   m_shader->issue_warp(*m_tensor_core_out, pI, active_mask,
-                                       warp_id, m_id);
+                                       warp_id, schedule_id[3]);
                   issued++;
                   issued_inst = true;
                   warp_inst_issued = true;
@@ -1382,11 +1363,11 @@ void scheduler_unit::cycle() {
                     (m_shader->m_config->m_specialized_unit[spec_id].num_units >
                      0) &&
                     spec_reg_set->has_free(m_shader->m_config->sub_core_model,
-                                           m_id);
+                                           m_id, &schedule_id[6]);
 
                 if (spec_pipe_avail) {
                   m_shader->issue_warp(*spec_reg_set, pI, active_mask, warp_id,
-                                       m_id);
+                                       schedule_id[6]);
                   issued++;
                   issued_inst = true;
                   warp_inst_issued = true;
@@ -1412,7 +1393,6 @@ void scheduler_unit::cycle() {
         warp(warp_id).ibuffer_flush();
       }
       if (warp_inst_issued) {
-        (*iter)->get_shader()->num_cta_insts_issued[(*iter)->get_cta_id()]++;
         SCHED_DPRINTF(
             "Warp (warp_id %u, dynamic_warp_id %u) issued %u instructions\n",
             (*iter)->get_warp_id(), (*iter)->get_dynamic_warp_id(), issued);
@@ -1479,44 +1459,9 @@ bool scheduler_unit::sort_warps_by_oldest_dynamic_id(shd_warp_t *lhs,
   }
 }
 
-bool scheduler_unit::sort_warps_by_cta_progress(shd_warp_t *lhs,
-                                                shd_warp_t *rhs) {
-  if (rhs && lhs) {
-    if (lhs->get_cta_id() == rhs->get_cta_id()) {
-      return false;
-    } else {
-      int left_cta_id=lhs->get_cta_id();
-      int right_cta_id=rhs->get_cta_id();
-      if (lhs->get_shader()->num_cta_insts_issued[left_cta_id] < rhs->get_shader()->num_cta_insts_issued[right_cta_id]) {
-        return false;
-      } else {
-        return true;
-      }
-    }
-  } else {
-    return lhs < rhs;
-  }
-  return false;
-}
-
 void lrr_scheduler::order_warps() {
   order_lrr(m_next_cycle_prioritized_warps, m_supervised_warps,
             m_last_supervised_issued, m_supervised_warps.size());
-}
-
-void kaws_scheduler::order_warps() {
-  bool isKAWS=this->get_shader()->is_last_cta_issued;
-  if (isKAWS) {
-    order_by_priority(m_next_cycle_prioritized_warps, m_supervised_warps,
-                    m_last_supervised_issued, m_supervised_warps.size(),
-                    ORDERING_BY_CTA_PROGRESS,
-                    scheduler_unit::sort_warps_by_cta_progress);
-  } else {
-    order_by_priority(m_next_cycle_prioritized_warps, m_supervised_warps,
-                    m_last_supervised_issued, m_supervised_warps.size(),
-                    ORDERING_GREEDY_THEN_PRIORITY_FUNC,
-                    scheduler_unit::sort_warps_by_oldest_dynamic_id);
-  }
 }
 
 void gto_scheduler::order_warps() {
@@ -2742,16 +2687,12 @@ void ldst_unit::cycle() {
     }
   }
 }
-// Endsem
+
 void shader_core_ctx::register_cta_thread_exit(unsigned cta_num,
                                                kernel_info_t *kernel) {
   assert(m_cta_status[cta_num] > 0);
   m_cta_status[cta_num]--;
   if (!m_cta_status[cta_num]) {
-    // for (int z=0; z<num_ctas; z++) {
-    //   printf("%d ", num_cta_insts_issued[z]);
-    // }
-    printf("cta id %d insts issued %d\n", cta_num, num_cta_insts_issued[cta_num]);
     // Increment the completed CTAs
     m_stats->ctas_completed++;
     m_gpu->inc_completed_cta();
@@ -3262,7 +3203,7 @@ void shader_core_ctx::display_pipeline(FILE *fout, int print_mem,
     }
   }
 }
-// Endsem
+
 unsigned int shader_core_config::max_cta(const kernel_info_t &k) const {
   unsigned threads_per_cta = k.threads_per_cta();
   const class function_info *kernel = k.entry();
@@ -4031,7 +3972,7 @@ void opndcoll_rfu_t::dispatch_ready_cu() {
     }
   }
 }
-// Endsem
+
 void opndcoll_rfu_t::allocate_cu(unsigned port_num) {
   input_port_t &inp = m_in_ports[port_num];
   for (unsigned i = 0; i < inp.m_in.size(); i++) {
@@ -4194,7 +4135,7 @@ simt_core_cluster::simt_core_cluster(class gpgpu_sim *gpu, unsigned cluster_id,
   m_memory_stats = mstats;
   m_mem_config = mem_config;
 }
-// Endsem
+
 void simt_core_cluster::core_cycle() {
   for (std::list<unsigned>::iterator it = m_core_sim_order.begin();
        it != m_core_sim_order.end(); ++it) {
