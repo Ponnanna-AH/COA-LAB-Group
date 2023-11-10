@@ -52,6 +52,10 @@
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
+int num_warps = 0;
+int *cta_status = NULL;
+int *warp_insts_issued = NULL;
+
 mem_fetch *shader_core_mem_fetch_allocator::alloc(
     new_addr_type addr, mem_access_type type, unsigned size, bool wr,
     unsigned long long cycle) const {
@@ -158,7 +162,7 @@ void shader_core_ctx::create_front_pipeline() {
                               get_shader_instruction_cache_id(), m_icnt,
                               IN_L1I_MISS_QUEUE);
 }
-// This function initializes schedulers before CTAs are being issued
+
 void shader_core_ctx::create_schedulers() {
   m_scoreboard = new Scoreboard(m_sid, m_config->max_warps_per_shader, m_gpu);
 
@@ -176,8 +180,7 @@ void shader_core_ctx::create_schedulers() {
                             ? CONCRETE_SCHEDULER_OLDEST_FIRST
                             : sched_config.find("warp_limiting") != std::string::npos
                                   ? CONCRETE_SCHEDULER_WARP_LIMITING
-                                  : sched_config.find("kaws") != std::string::npos // extra parameter "kaws" is implemented so that
-                                                                                   // scheduler can be set in gpgpu-sim.config file
+                                  : sched_config.find("kaws") != std::string::npos
                                         ? CONCRETE_SCHEDULER_KAWS
                                         : NUM_CONCRETE_SCHEDULERS;
   assert(scheduler != NUM_CONCRETE_SCHEDULERS);
@@ -192,7 +195,6 @@ void shader_core_ctx::create_schedulers() {
             &m_pipeline_reg[ID_OC_TENSOR_CORE], m_specilized_dispatch_reg,
             &m_pipeline_reg[ID_OC_MEM], i));
         break;
-      // additional case for KAWS is added to create kaws_schdeuler object
       case CONCRETE_SCHEDULER_KAWS:
         schedulers.push_back(new kaws_scheduler(
             m_stats, this, m_scoreboard, m_simt_stack, &m_warp,
@@ -237,9 +239,13 @@ void shader_core_ctx::create_schedulers() {
         abort();
     };
   }
-  // since this function is called before shader_core_ctx::issue_block2core,
-  // it is safe to set is_last_cta_issued flag to "false"
-  is_last_cta_issued = false;
+  // Here m_warp.size() is the total number of warps in a core, because we are in shader_core_ctx class
+  // Try to print here cta id by using warp(warp_id).get_cta_id()
+  // Maybe this will return concurrent or original cta id
+
+  // num_cta_insts_issued=(int*)calloc(MAX_CTA_PER_SHADER, sizeof(int));
+  is_last_cta_issued=false;
+  // num_ctas=MAX_CTA_PER_SHADER;
 
   for (unsigned i = 0; i < m_warp.size(); i++) {
     // distribute i's evenly though schedulers;
@@ -507,7 +513,7 @@ void shader_core_ctx::reinit(unsigned start_thread, unsigned end_thread,
     m_simt_stack[i]->reset();
   }
 }
-
+// Endsem
 void shader_core_ctx::init_warps(unsigned cta_id, unsigned start_thread,
                                  unsigned end_thread, unsigned ctaid,
                                  int cta_size, kernel_info_t &kernel) {
@@ -894,7 +900,7 @@ void shader_core_ctx::decode() {
     m_inst_fetch_buffer.m_valid = false;
   }
 }
-
+// Endsem
 void shader_core_ctx::fetch() {
   if (!m_inst_fetch_buffer.m_valid) {
     if (m_L1I->access_ready()) {
@@ -1079,21 +1085,21 @@ shd_warp_t &scheduler_unit::warp(int i) { return *((*m_warp)[i]); }
  */
 template <class T>
 void scheduler_unit::order_lrr(
-    std::vector<T> &result_list, const typename std::vector<T> &input_list,
-    const typename std::vector<T>::const_iterator &last_issued_from_input,
-    unsigned num_warps_to_add) {
-  assert(num_warps_to_add <= input_list.size());
-  result_list.clear();
-  typename std::vector<T>::const_iterator iter =
-      (last_issued_from_input == input_list.end()) ? input_list.begin()
-                                                   : last_issued_from_input + 1;
+        std::vector<T> &result_list, const typename std::vector<T> &input_list,
+        const typename std::vector<T>::const_iterator &last_issued_from_input,
+        unsigned num_warps_to_add) {
+    assert(num_warps_to_add <= input_list.size());
+    result_list.clear();
+    typename std::vector<T>::const_iterator iter = (last_issued_from_input == input_list.end()) 
+                                                        ? input_list.begin()
+                                                        : last_issued_from_input + 1;
   
-  for (unsigned count = 0; count < num_warps_to_add; ++iter, ++count) {
-      if (iter == input_list.end()) {
-          iter = input_list.begin();
-      }
-      result_list.push_back(*iter);
-  }
+    for (unsigned count = 0; count < num_warps_to_add; ++iter, ++count) {
+        if (iter == input_list.end()) {
+            iter = input_list.begin();
+        }
+        result_list.push_back(*iter);
+    }
 }
 
 /**
@@ -1135,7 +1141,7 @@ void scheduler_unit::order_by_priority(
     for (unsigned count = 0; count < num_warps_to_add; ++count, ++iter) {
       result_list.push_back(*iter);
     }
-  } else if (ORDERING_BY_CTA_PROGRESS == ordering) { // additional conditional statement for KAWS
+  } else if (ORDERING_BY_CTA_PROGRESS == ordering) {
     std::sort(temp.begin(), temp.end(), priority_func);
     typename std::vector<T>::iterator iter = temp.begin();
     for (unsigned count = 0; count < num_warps_to_add; ++count, ++iter) {
@@ -1146,7 +1152,7 @@ void scheduler_unit::order_by_priority(
     abort();
   }
 }
-// This function issues instructions per clock cycle
+
 void scheduler_unit::cycle() {
   SCHED_DPRINTF("scheduler_unit::cycle()\n");
   bool valid_inst =
@@ -1406,7 +1412,6 @@ void scheduler_unit::cycle() {
         warp(warp_id).ibuffer_flush();
       }
       if (warp_inst_issued) {
-        // incrementing CTA progress by obtaining the warp pointer "*iter"
         (*iter)->get_shader()->num_cta_insts_issued[(*iter)->get_cta_id()]++;
         SCHED_DPRINTF(
             "Warp (warp_id %u, dynamic_warp_id %u) issued %u instructions\n",
@@ -1473,16 +1478,15 @@ bool scheduler_unit::sort_warps_by_oldest_dynamic_id(shd_warp_t *lhs,
     return lhs < rhs;
   }
 }
-// Comparator function to sort warps based on CTA progress
-// Returns "true" if rhs is prioritized over lhs else "false"
+
 bool scheduler_unit::sort_warps_by_cta_progress(shd_warp_t *lhs,
                                                 shd_warp_t *rhs) {
   if (rhs && lhs) {
     if (lhs->get_cta_id() == rhs->get_cta_id()) {
       return false;
     } else {
-      int left_cta_id = lhs->get_cta_id();
-      int right_cta_id = rhs->get_cta_id();
+      int left_cta_id=lhs->get_cta_id();
+      int right_cta_id=rhs->get_cta_id();
       if (lhs->get_shader()->num_cta_insts_issued[left_cta_id] < rhs->get_shader()->num_cta_insts_issued[right_cta_id]) {
         return false;
       } else {
@@ -1499,16 +1503,15 @@ void lrr_scheduler::order_warps() {
   order_lrr(m_next_cycle_prioritized_warps, m_supervised_warps,
             m_last_supervised_issued, m_supervised_warps.size());
 }
-// Prioritizing warps is taken care by this function
+
 void kaws_scheduler::order_warps() {
-  // track when the last CTA was issued
-  bool milestone_reached = this->get_shader()->is_last_cta_issued;
-  if (milestone_reached) { // progress-based scheduling policy
+  bool isKAWS=this->get_shader()->is_last_cta_issued;
+  if (isKAWS) {
     order_by_priority(m_next_cycle_prioritized_warps, m_supervised_warps,
                     m_last_supervised_issued, m_supervised_warps.size(),
                     ORDERING_BY_CTA_PROGRESS,
                     scheduler_unit::sort_warps_by_cta_progress);
-  } else { // age-based scheduling policy (assume GTO is default schdeuler)
+  } else {
     order_by_priority(m_next_cycle_prioritized_warps, m_supervised_warps,
                     m_last_supervised_issued, m_supervised_warps.size(),
                     ORDERING_GREEDY_THEN_PRIORITY_FUNC,
@@ -2739,12 +2742,16 @@ void ldst_unit::cycle() {
     }
   }
 }
-
+// Endsem
 void shader_core_ctx::register_cta_thread_exit(unsigned cta_num,
                                                kernel_info_t *kernel) {
   assert(m_cta_status[cta_num] > 0);
   m_cta_status[cta_num]--;
   if (!m_cta_status[cta_num]) {
+    // for (int z=0; z<num_ctas; z++) {
+    //   printf("%d ", num_cta_insts_issued[z]);
+    // }
+    printf("cta id %d insts issued %d\n", cta_num, num_cta_insts_issued[cta_num]);
     // Increment the completed CTAs
     m_stats->ctas_completed++;
     m_gpu->inc_completed_cta();
@@ -3255,7 +3262,7 @@ void shader_core_ctx::display_pipeline(FILE *fout, int print_mem,
     }
   }
 }
-
+// Endsem
 unsigned int shader_core_config::max_cta(const kernel_info_t &k) const {
   unsigned threads_per_cta = k.threads_per_cta();
   const class function_info *kernel = k.entry();
@@ -4024,7 +4031,7 @@ void opndcoll_rfu_t::dispatch_ready_cu() {
     }
   }
 }
-
+// Endsem
 void opndcoll_rfu_t::allocate_cu(unsigned port_num) {
   input_port_t &inp = m_in_ports[port_num];
   for (unsigned i = 0; i < inp.m_in.size(); i++) {
@@ -4187,7 +4194,7 @@ simt_core_cluster::simt_core_cluster(class gpgpu_sim *gpu, unsigned cluster_id,
   m_memory_stats = mstats;
   m_mem_config = mem_config;
 }
-
+// Endsem
 void simt_core_cluster::core_cycle() {
   for (std::list<unsigned>::iterator it = m_core_sim_order.begin();
        it != m_core_sim_order.end(); ++it) {

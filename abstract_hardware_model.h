@@ -213,10 +213,8 @@ class kernel_info_t {
     m_num_cores_running--;
   }
   bool running() const { return m_num_cores_running > 0; }
-  int num_cta_running() { return m_num_cores_running; }
   bool done() const { return no_more_ctas_to_run() && !running(); }
-  bool is_last_CTA() const { return no_more_ctas_to_run() && running(); } // function returns true when no more CTAs are left
-                                                                          // to run but the kernel is still running
+  bool is_last_CTA() const { return no_more_ctas_to_run() && running(); }
   class function_info *entry() {
     return m_kernel_entry;
   }

@@ -1572,12 +1572,16 @@ unsigned exec_shader_core_ctx::sim_init_thread(
   return ptx_sim_init_thread(kernel, thread_info, sid, tid, threads_left,
                              num_threads, core, hw_cta_id, hw_warp_id, gpu);
 }
-// This function is used to issue CTAs in a round-robin manner
+// Endsem
 void shader_core_ctx::issue_block2core(kernel_info_t &kernel) {
   if (!m_config->gpgpu_concurrent_kernel_sm)
     set_max_cta(kernel);
   else
     assert(occupy_shader_resource_1block(kernel, true));
+
+  // if (!kernel.num_cta_running()) {
+  //   create_schedulers();
+  // }
 
   kernel.inc_running();
 
@@ -1595,7 +1599,7 @@ void shader_core_ctx::issue_block2core(kernel_info_t &kernel) {
       break;
     }
   }
-  num_cta_insts_issued[free_cta_hw_id] = 0; // setting up CTA progress counters to zero 
+  num_cta_insts_issued[free_cta_hw_id]=0;
   assert(free_cta_hw_id != (unsigned)-1);
 
   // determine hardware threads and warps that will be used for this CTA
@@ -1680,15 +1684,22 @@ void shader_core_ctx::issue_block2core(kernel_info_t &kernel) {
   init_warps(free_cta_hw_id, start_thread, end_thread, ctaid, cta_size, kernel);
   m_n_active_cta++;
 
+  // printf("!@#$ %d\n", ctaid);
+
   shader_CTA_count_log(m_sid, 1);
   SHADER_DPRINTF(LIVENESS,
                  "GPGPU-Sim uArch: cta:%2u, start_tid:%4u, end_tid:%4u, "
                  "initialized @(%lld,%lld)\n",
                  free_cta_hw_id, start_thread, end_thread, m_gpu->gpu_sim_cycle,
                  m_gpu->gpu_tot_sim_cycle);
-  // set the is_last_cta_issued flag to true when last CTA of the kernel is issued
+
+  // printf("Hello!!!!!\n");
   if (kernel.is_last_CTA()) {
-      is_last_cta_issued = true;
+      is_last_cta_issued=true;
+  //   printf("Hello, World!\n\n\n");
+  //   // uncomment below after implementing kaws_scheduler
+  //   // update sched_config and NUM_CONCRETE_SCHEDULERS
+  //   create_kaws_schedulers();
   }
 }
 
